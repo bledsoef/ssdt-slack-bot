@@ -1,1 +1,1 @@
-# ssdt-slack-bot
+# SSDT Slack Bot
