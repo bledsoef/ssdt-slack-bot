@@ -1,40 +1,58 @@
 package main
 
 import (
-    "fmt"
+    "context"
     "os"
-    "time"
+    "log"
  
     "github.com/joho/godotenv"
     "github.com/slack-go/slack"
+    "github.com/slack-go/slack/slackevents"
+    "github.com/slack-go/slack/socketmode"
 )
 func main() {
-	godotenv.Load(".env")
+ 
+    godotenv.Load(".env")
  
     token := os.Getenv("SLACK_AUTH_TOKEN")
-    channelID := os.Getenv("SLACK_CHANNEL_ID")
+    appToken := os.Getenv("SLACK_APP_TOKEN")
  
-    client := slack.New(token, slack.OptionDebug(true))
-    attachment := slack.Attachment{
-        Pretext: "Super Bot Message",
-        Text:    "some text",
-        Color: "4af030",
-        Fields: []slack.AttachmentField{
-            {
-                Title: "Date",
-                Value: time.Now().String(),
-            },
-        },
-    }
+    client := slack.New(token, slack.OptionDebug(true), slack.OptionAppLevelToken(appToken))
  
-    _, timestamp, err := client.PostMessage(
-        channelID,
- 
-        slack.MsgOptionAttachments(attachment),
+    socketClient := socketmode.New(
+        client,
+        socketmode.OptionDebug(true),
+        socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
     )
  
-    if err != nil {
-        panic(err)
-    }
-    fmt.Printf("Message sent at %s", timestamp)
+    ctx, cancel := context.WithCancel(context.Background())
+ 
+    defer cancel()
+ 
+    go func(ctx context.Context, client *slack.Client, socketClient *socketmode.Client) {
+        for {
+            select {
+            case <-ctx.Done():
+                log.Println("Shutting down socketmode listener")
+                return
+            case event := <-socketClient.Events:
+ 
+                switch event.Type {
+        
+                case socketmode.EventTypeEventsAPI:
+ 
+                    eventsAPI, ok := event.Data.(slackevents.EventsAPIEvent)
+                    if !ok {
+                        log.Printf("Could not type cast the event to the EventsAPI: %v\n", event)
+                        continue
+                    }
+ 
+                    socketClient.Ack(*event.Request)
+                    log.Println(eventsAPI)
+                }
+            }
+        }
+    }(ctx, client, socketClient)
+ 
+    socketClient.Run()
 }
