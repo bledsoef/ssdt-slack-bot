@@ -8,10 +8,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/go-github/v50/github"
 	"github.com/joho/godotenv"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
+	"golang.org/x/oauth2"
 )
 
 func main() {
@@ -24,10 +26,25 @@ func main() {
 	// Create a new client to slack by giving token
 	// Set debug to true while developing
 	// Also add a ApplicationToken option to the client
-	client := slack.New(token, slack.OptionDebug(true), slack.OptionAppLevelToken(appToken))
+	slackClient := slack.New(token, slack.OptionDebug(true), slack.OptionAppLevelToken(appToken))
+
+	// github API authorization
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: "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"},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	githubClient := github.NewClient(tc)
+	orgs, _, err := githubClient.Repositories.List(ctx, "", nil)
+	if err != nil {
+		// Replace with actual err handeling
+		log.Fatal(err)
+	}
+	fmt.Println(orgs)
+
 	// go-slack comes with a SocketMode package that we need to use that accepts a Slack client and outputs a Socket mode client instead
 	socket := socketmode.New(
-		client,
+		slackClient,
 		socketmode.OptionDebug(true),
 		// Option to set a custom logger
 		socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
@@ -38,7 +55,7 @@ func main() {
 	// Make this cancel called properly in a real program , graceful shutdown etc
 	defer cancel()
 
-	go func(ctx context.Context, client *slack.Client, socket *socketmode.Client) {
+	go func(ctx context.Context, slackClient *slack.Client, socket *socketmode.Client) {
 		// Create a for loop that selects either the context cancellation or the events incomming
 		for {
 			select {
@@ -66,7 +83,7 @@ func main() {
 
 					//------------------------------------
 					// Now we have an Events API event, but this event type can in turn be many types, so we actually need another type switch
-					err := HandleEventMessage(eventsAPI, client)
+					err := HandleEventMessage(eventsAPI, slackClient)
 					if err != nil {
 						// Replace with actual err handeling
 						log.Fatal(err)
@@ -74,13 +91,13 @@ func main() {
 				}
 			}
 		}
-	}(ctx, client, socket)
+	}(ctx, slackClient, socket)
 
 	socket.Run()
 }
 
 // HandleEventMessage will take an event and handle it properly based on the type of event
-func HandleEventMessage(event slackevents.EventsAPIEvent, client *slack.Client) error {
+func HandleEventMessage(event slackevents.EventsAPIEvent, slackClient *slack.Client) error {
 	switch event.Type {
 	// First we check if this is an CallbackEvent
 	case slackevents.CallbackEvent:
@@ -90,7 +107,7 @@ func HandleEventMessage(event slackevents.EventsAPIEvent, client *slack.Client) 
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
 			// The application has been mentioned since this Event is a Mention event
-			err := HandleAppMentionEventToBot(ev, client)
+			err := HandleAppMentionEventToBot(ev, slackClient)
 			if err != nil {
 				return err
 			}
@@ -102,10 +119,10 @@ func HandleEventMessage(event slackevents.EventsAPIEvent, client *slack.Client) 
 }
 
 // HandleAppMentionEventToBot is used to take care of the AppMentionEvent when the bot is mentioned
-func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, client *slack.Client) error {
+func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, slackClient *slack.Client) error {
 
 	// Grab the user name based on the ID of the one who mentioned the bot
-	user, err := client.GetUserInfo(event.User)
+	user, err := slackClient.GetUserInfo(event.User)
 	if err != nil {
 		return err
 	}
@@ -142,7 +159,7 @@ func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, client *slac
 	}
 	// Send the message to the channel
 	// The Channel is available in the event message
-	_, _, err = client.PostMessage(event.Channel, slack.MsgOptionAttachments(attachment))
+	_, _, err = slackClient.PostMessage(event.Channel, slack.MsgOptionAttachments(attachment))
 	if err != nil {
 		return fmt.Errorf("failed to post message: %w", err)
 	}
