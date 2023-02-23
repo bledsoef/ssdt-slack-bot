@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v50/github"
@@ -28,20 +29,26 @@ func main() {
 	// Also add a ApplicationToken option to the client
 	slackClient := slack.New(token, slack.OptionDebug(true), slack.OptionAppLevelToken(appToken))
 
-	// github API authorization
+	// Github API authorization
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: "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"},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 	githubClient := github.NewClient(tc)
-	orgs, _, err := githubClient.Repositories.List(ctx, "", nil)
-	if err != nil {
-		// Replace with actual err handeling
-		log.Fatal(err)
-	}
-	fmt.Println(orgs)
 
+	// Get the list of PRS and their
+	prs, _, err := githubClient.PullRequests.List(ctx, "BCStudentSoftwareDevTeam", "celts", nil)
+	if err != nil {
+		fmt.Printf("Error retrieving pull requests: %v\n", err)
+		return
+	}
+	message := "The current PRs in celts are "
+
+	// Loop through the list of pull requests and print out the title and URL
+	for i, pr := range prs {
+		message += fmt.Sprintf("%s. %s last updated on %s. View it here: %s", strconv.Itoa(i+1), *pr.Title, *pr.UpdatedAt, *pr.HTMLURL)
+	}
 	// go-slack comes with a SocketMode package that we need to use that accepts a Slack client and outputs a Socket mode client instead
 	socket := socketmode.New(
 		slackClient,
@@ -83,7 +90,7 @@ func main() {
 
 					//------------------------------------
 					// Now we have an Events API event, but this event type can in turn be many types, so we actually need another type switch
-					err := HandleEventMessage(eventsAPI, slackClient)
+					err := HandleEventMessage(eventsAPI, slackClient, message)
 					if err != nil {
 						// Replace with actual err handeling
 						log.Fatal(err)
@@ -97,7 +104,7 @@ func main() {
 }
 
 // HandleEventMessage will take an event and handle it properly based on the type of event
-func HandleEventMessage(event slackevents.EventsAPIEvent, slackClient *slack.Client) error {
+func HandleEventMessage(event slackevents.EventsAPIEvent, slackClient *slack.Client, text string) error {
 	switch event.Type {
 	// First we check if this is an CallbackEvent
 	case slackevents.CallbackEvent:
@@ -107,7 +114,7 @@ func HandleEventMessage(event slackevents.EventsAPIEvent, slackClient *slack.Cli
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
 			// The application has been mentioned since this Event is a Mention event
-			err := HandleAppMentionEventToBot(ev, slackClient)
+			err := HandleAppMentionEventToBot(ev, slackClient, text)
 			if err != nil {
 				return err
 			}
@@ -119,7 +126,7 @@ func HandleEventMessage(event slackevents.EventsAPIEvent, slackClient *slack.Cli
 }
 
 // HandleAppMentionEventToBot is used to take care of the AppMentionEvent when the bot is mentioned
-func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, slackClient *slack.Client) error {
+func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, slackClient *slack.Client, message string) error {
 
 	// Grab the user name based on the ID of the one who mentioned the bot
 	user, err := slackClient.GetUserInfo(event.User)
@@ -141,9 +148,9 @@ func HandleAppMentionEventToBot(event *slackevents.AppMentionEvent, slackClient 
 	// 		Value: user.Name,
 	// 	},
 	// }
-	if strings.Contains(text, "hello") || strings.Contains(text, "hi") {
+	if strings.Contains(text, "PR") || strings.Contains(text, "pull request") {
 		// Greet the user
-		attachment.Text = fmt.Sprintf("Hello %s", user.Name)
+		attachment.Text = fmt.Sprintf("Hello %s. %s.", user.Name, message)
 		// attachment.Pretext = "Greetings"
 		attachment.Color = "#4af030"
 	} else if strings.Contains(text, "weather") {
