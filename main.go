@@ -8,7 +8,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/CSC420-Programming-Languages/p01-individual-project-bledsoef/controllers"
 
 	"github.com/google/go-github/v50/github"
 	"github.com/joho/godotenv"
@@ -25,31 +26,45 @@ func main() {
 
 	token := os.Getenv("SLACK_AUTH_TOKEN")
 	appToken := os.Getenv("SLACK_APP_TOKEN")
-	// Create a new client to slack by giving token
-	// Set debug to true while developing
-	// Also add a ApplicationToken option to the client
+
+	// initialize slack instance
 	slackClient := slack.New(token, slack.OptionDebug(true), slack.OptionAppLevelToken(appToken))
 
-	// go-slack comes with a SocketMode package that we need to use that accepts a Slack client and outputs a Socket mode client instead
+	// initialize socket mode instance
 	socket := socketmode.New(
 		slackClient,
 		socketmode.OptionDebug(true),
-		// Option to set a custom logger
 		socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
 	)
-	now := time.Now()
-	now.Add(time.Minute * 1)
-	// Create a context that can be used to cancel goroutine
 	ctx, cancel := context.WithCancel(context.Background())
+
+	socketmodeHandler := socketmode.NewSocketmodeHandler(socket)
+
+	controllers.NewSlashCommandController(socketmodeHandler)
+
+	// attachment := slack.Attachment{Pretext: "Super Bot Message",
+	// 	Text:  "some text",
+	// 	Color: "4af030",
+	// 	Fields: []slack.AttachmentField{
+	// 		{
+	// 			Title: "Date",
+	// 			Value: time.Now().String(),
+	// 		},
+	// 	}}
+	file, _, err := slackClient.GetFiles(slack.GetFilesParameters{Channel: "C04LA97FWKH", Count: 1})
+	fmt.Println(err)
+	fmt.Println(file)
+
+	// _, _, err = slackClient.ScheduleMessage("C04LA97FWKH", string(scheduledTime), slack.MsgOptionAttachments(attachment))
+	// fmt.Println(slackClient.GetScheduledMessages(&slack.GetScheduledMessagesParameters{Channel: "C04LA97FWKH"}))
 	// Make this cancel called properly in a real program , graceful shutdown etc
 	defer cancel()
 	go func(ctx context.Context, slackClient *slack.Client, socket *socketmode.Client) {
 		// Create a for loop that selects either the context cancellation or the events incomming
 		for {
-
-			attachment := slack.Attachment{}
-			attachment.Text = "Hi"
-			socket.ScheduleMessage("C04LA97FWKH", now.String(), slack.MsgOptionAttachments(attachment))
+			if err != nil {
+				fmt.Errorf("failed to post message: %w", err)
+			}
 			select {
 			// inscase context cancel is called exit the goroutine
 			case <-ctx.Done():
