@@ -28,8 +28,6 @@ func main() {
 		socketmode.OptionDebug(true),
 		socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
 	)
-	// ctx, cancel := context.WithCancel(context.Background())
-
 	socketmodeHandler := socketmode.NewSocketmodeHandler(socket)
 
 	controllers.NewSlashCommand(socketmodeHandler)
@@ -177,35 +175,4 @@ func main() {
 // 		return fmt.Errorf("failed to post message: %w", err)
 // 	}
 // 	return nil
-// }
-
-// func GetPRs(repo string, githubClient *github.Client, ctx context.Context) string {
-// 	message := ""
-// 	if repo == "all" {
-// 		repos := [...]string{"celts", "lsf", "bcsr"}
-// 		// Loop through the list of pull requests and print out the title and URL
-// 		var allprs []*github.PullRequest
-// 		for _, r := range repos {
-// 			prs, _, err := githubClient.PullRequests.List(ctx, "BCStudentSoftwareDevTeam", r, nil)
-// 			allprs = append(allprs, prs...)
-// 			if err != nil {
-// 				fmt.Printf("Error retrieving pull requests: %v\n", err)
-// 			}
-// 		}
-// 		// Loop through the list of pull requests and print out the title and URL
-// 		for i, pr := range allprs {
-// 			message += fmt.Sprintf("%s. %s last updated on %s. View it here: %s \n", strconv.Itoa(i+1), *pr.Title, *pr.UpdatedAt, *pr.HTMLURL)
-// 		}
-// 	} else {
-// 		prs, _, err := githubClient.PullRequests.List(ctx, "BCStudentSoftwareDevTeam", repo, nil)
-// 		if err != nil {
-// 			fmt.Printf("Error retrieving pull requests: %v\n", err)
-// 		}
-// 		// Loop through the list of pull requests and print out the title and URL
-// 		for i, pr := range prs {
-// 			message += fmt.Sprintf("%s. %s last updated on %s. View it here: %s \n", strconv.Itoa(i+1), *pr.Title, *pr.UpdatedAt, *pr.HTMLURL)
-// 		}
-// 	}
-
-// 	return message
 // }
