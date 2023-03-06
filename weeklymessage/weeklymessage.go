@@ -67,9 +67,7 @@ func main() {
 }
 
 func getOutstandingPRs() string {
-	message := "*Good morning everyone!*"
-	var needsReview []*github.PullRequest
-	var needsChanges []*github.PullRequest
+	message := "*Good morning everyone!* \n"
 
 	// set up authentication and api variables
 	ctx := context.Background()
@@ -101,8 +99,9 @@ func getOutstandingPRs() string {
 		allPRs = append(allPRs, prs...)
 	}
 	noReviews := false
-	lastReview := time.Now()
-	lastCommit := time.Now()
+
+	reviewMessage := "*The PRs that require a review are:* \n"
+	changeMessage := "*The PRs that require changes are:* \n"
 
 	// iterate through the prs and identify if they are outstanding.
 	for _, pr := range allPRs {
@@ -116,7 +115,7 @@ func getOutstandingPRs() string {
 
 		noReviews = false
 
-		lastReview = time.Now()
+		lastReview := time.Now()
 
 		commits, _, err := githubClient.PullRequests.ListCommits(ctx, owner, *pr.GetBase().GetRepo().Name, pr.GetNumber(), nil)
 		if err != nil {
@@ -142,37 +141,20 @@ func getOutstandingPRs() string {
 
 		// if there have recently been changes and still no review then a review is required
 		if (sinceCommit > 48*time.Hour) && ((sinceReview > sinceCommit) || noReviews) {
-			needsReview = append(needsReview, pr)
+			reviewMessage += fmt.Sprintf("%s: <%s|#%s> %s. Last updated on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastCommit.Format("January 2, 2006"))
 
 		}
 
 		// if there has recently been a review and still no changes then changes are required
 		if !noReviews && ((sinceReview > 48*time.Hour) && (sinceReview < sinceCommit)) {
-			needsChanges = append(needsChanges, pr)
-
-		}
-
-		// if needsReview {
-		// 	fmt.Printf("Pull Request #%d needs review\n", pr.GetNumber())
-		// } else if needsChanges {
-		// 	fmt.Printf("Pull Request #%d needs changes\n", pr.GetNumber())
-		// }
-	}
-	// loop throught the prs that require a review and add them to the message
-	message += "*The PRs that require a review are:* \n"
-	for i, review := range needsReview {
-		message += fmt.Sprintf("%s. %s: #%s %s. Last updated on %s. \n", fmt.Sprint(i+1), *review.GetBase().GetRepo().Name, fmt.Sprint(review.GetNumber()), *review.Title, lastCommit.Format("January 2, 2006"))
-	}
-
-	// loop throught the prs that require changes and add them to the message
-	message += "*The PRs that require changes are:* \n"
-	for i, changes := range needsChanges {
-		if !noReviews {
-			message += fmt.Sprintf("%s. %s: #%s %s. Last reviewed on %s. \n", fmt.Sprint(i+1), *changes.GetBase().GetRepo().Name, fmt.Sprint(changes.GetNumber()), *changes.Title, lastReview.Format("January 2, 2006"))
-		} else {
-			message += fmt.Sprintf("%s. %s: #%s %s. Submitted on %s. \n", fmt.Sprint(i+1), *changes.GetBase().GetRepo().Name, fmt.Sprint(changes.GetNumber()), *changes.Title, lastCommit.Format("January 2, 2006"))
+			if !noReviews {
+				changeMessage += fmt.Sprintf("%s: <%s|#%s> %s. Last reviewed on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+			} else {
+				changeMessage += fmt.Sprintf("%s: <%s|#%s> %s. Submitted on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastCommit.Format("January 2, 2006"))
+			}
 		}
 	}
+	message += reviewMessage + changeMessage
 	return message
 
 }
