@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"p01-individual-project-bledsoef/utils"
 	"time"
 
 	"github.com/google/go-github/github"
@@ -99,8 +100,8 @@ func getOutstandingPRs() string {
 		allPRs = append(allPRs, prs...)
 	}
 	noReviews := false
-
-	reviewMessage := "*The PRs that require a review are:* \n"
+	reviewer1, reviewer2 := utils.ReadFile()
+	reviewMessage := fmt.Sprintf("<@%s> <@%s>*The PRs that require a review are:* \n", reviewer1, reviewer2)
 	changeMessage := "*The PRs that require changes are:* \n"
 
 	// iterate through the prs and identify if they are outstanding.
