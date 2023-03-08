@@ -68,7 +68,7 @@ func main() {
 }
 
 func getOutstandingPRs() string {
-	message := "*Good morning everyone!* \n"
+	message := "*Good morning everyone!* \n\n"
 
 	// set up authentication and api variables
 	ctx := context.Background()
@@ -100,9 +100,17 @@ func getOutstandingPRs() string {
 		allPRs = append(allPRs, prs...)
 	}
 	noReviews := false
-	reviewer1, reviewer2 := utils.ReadFile()
-	reviewMessage := fmt.Sprintf("<@%s> <@%s>*The PRs that require a review are:* \n", reviewer1, reviewer2)
-	changeMessage := "*The PRs that require changes are:* \n"
+	reviewer1, reviewer2 := utils.ReadReviewSchedule()
+	reviewMessage := ""
+
+	if reviewer2 != "" {
+		reviewMessage = fmt.Sprintf("<@%s> <@%s> *The PRs that require a review are:* \n", reviewer1, reviewer2)
+
+	} else {
+		reviewMessage = fmt.Sprintf("<@%s> *The PRs that require a review are:* \n", reviewer1)
+
+	}
+	changeMessage := "\n*The PRs that require changes are:* \n"
 
 	// iterate through the prs and identify if they are outstanding.
 	for _, pr := range allPRs {
@@ -148,10 +156,24 @@ func getOutstandingPRs() string {
 
 		// if there has recently been a review and still no changes then changes are required
 		if !noReviews && ((sinceReview > 48*time.Hour) && (sinceReview < sinceCommit)) {
+			assignee1 := ""
+			assignee2 := ""
 			if !noReviews {
-				changeMessage += fmt.Sprintf("%s: <%s|#%s> %s. Last reviewed on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+				assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
+
+				if len(pr.Assignees) > 1 {
+					assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
+
+					changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Last reviewed on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+				}
 			} else {
-				changeMessage += fmt.Sprintf("%s: <%s|#%s> %s. Submitted on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastCommit.Format("January 2, 2006"))
+				assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
+
+				if len(pr.Assignees) > 1 {
+					assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
+
+					changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Submitted on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+				}
 			}
 		}
 	}
