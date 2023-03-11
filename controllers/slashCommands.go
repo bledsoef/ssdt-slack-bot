@@ -3,7 +3,10 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/google/go-github/github"
@@ -12,16 +15,16 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type SlashCommand struct {
+type SocketMode struct {
 	EventHandler *socketmode.SocketmodeHandler
 }
 
-func NewSlashCommand(eventhandler *socketmode.SocketmodeHandler) SlashCommand {
-	c := SlashCommand{
+func NewSlashCommand(eventhandler *socketmode.SocketmodeHandler) SocketMode {
+	c := SocketMode{
 		EventHandler: eventhandler,
 	}
 
-	// Register callback for the command /rocket
+	// Register callback for the command /prs
 	c.EventHandler.HandleSlashCommand(
 		"/prs",
 		c.getPullRequestData,
@@ -31,7 +34,22 @@ func NewSlashCommand(eventhandler *socketmode.SocketmodeHandler) SlashCommand {
 
 }
 
-func (c SlashCommand) getPullRequestData(evt *socketmode.Event, clt *socketmode.Client) {
+// func NewEvent(eventhandler *socketmode.SocketmodeHandler) SocketMode {
+// 	c := SocketMode{
+// 		EventHandler: eventhandler,
+// 	}
+
+// 	// Register callback for the command /prs
+// 	c.EventHandler.HandleEvents(
+// 		slackevents.AppMention,
+// 		c.appMention,
+// 	)
+
+// 	return c
+
+// }
+
+func (c SocketMode) getPullRequestData(evt *socketmode.Event, clt *socketmode.Client) {
 	// we need to cast our socketmode.Event into a Slash Command
 	command, ok := evt.Data.(slack.SlashCommand)
 
@@ -53,8 +71,6 @@ func (c SlashCommand) getPullRequestData(evt *socketmode.Event, clt *socketmode.
 	tc := oauth2.NewClient(ctx, ts)
 	githubClient := github.NewClient(tc)
 
-	// ctx, cancel := context.WithCancel(context.Background())
-
 	message := GetPRs(repo, githubClient, ctx)
 
 	attachment.Text = message
@@ -71,6 +87,33 @@ func (c SlashCommand) getPullRequestData(evt *socketmode.Event, clt *socketmode.
 		log.Printf("ERROR while sending message for /rocket: %v", err)
 	}
 
+}
+
+// func (c SocketMode) appMention(evt *socketmode.Event, clt *socketmode.Client) {
+// 	evt_api, _ := evt.Data.(slackevents.EventsAPIEvent)
+// 	evt_app_mention, _ := evt_api.InnerEvent.Data.(*slackevents.AppMentionEvent)
+// 	fmt.Println("HELLO", evt_app_mention., "Hello")
+// }
+
+func DownloadFile(filepath string, url string) error {
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 func GetPRs(repo string, githubClient *github.Client, ctx context.Context) string {

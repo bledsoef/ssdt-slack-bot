@@ -55,8 +55,8 @@ func ReadChoreSchedule() [][]string {
 		log.Fatal(err)
 	}
 	index := 0
-	rows, err := f.GetRows("Chores")
-	for i, row := range rows[0] {
+	rows, _ := f.GetRows("Chores")
+	for i, row := range rows[0][1:] {
 		date, err := time.Parse("2006-01-02", row)
 		if err != nil {
 			log.Fatal(err)

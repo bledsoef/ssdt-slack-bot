@@ -22,54 +22,46 @@ func main() {
 	channelID := "C04LA97FWKH"
 
 	api := slack.New(token)
-
-	message := getOutstandingPRs()
-	_, _, err := api.PostMessage(
+	api.PostMessage(
 		channelID,
-		slack.MsgOptionText(message, false),
+		slack.MsgOptionText(getChoreList(), false),
 	)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
-		return
-	}
+
 	// Create a new cron job that runs once a week on Monday at 9am
-	// 	cron := cron.New(cron.WithSeconds())
-	// 	cron.AddFunc("@daily", func() {
-	// 		// Create a time object for the scheduled time
-	// 		// Schedule the message to be sent
-	// 		_, _, err := api.PostMessage(
-	// 			channelID,
-	// 			slack.MsgOptionText(message, false),
-	// 		)
-	// 		if err != nil {
-	// 			fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
-	// 			return
-	// 		}
-	// 	})
+	// cron := cron.New(cron.WithSeconds())
+	// cron.AddFunc("* * * * *", func() {
+	// 	// Create a time object for the scheduled time
+	// 	// Schedule the message to be sent
+	// 	fmt.Println("running")
+	// 	_, _, err := api.PostMessage(
+	// 		channelID,
+	// 		slack.MsgOptionText(getOutstandingPRs(), false),
+	// 	)
+	// 	if err != nil {
+	// 		fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
+	// 		return
+	// 	}
+	// })
 
-	// 	cron.AddFunc("0 0 9 * * 5", func() {
-	// 		// Create a time object for the scheduled time
-	// 		// Schedule the message to be sent
-	// 		_, _, err := api.PostMessage(
-	// 			channelID,
-	// 			slack.MsgOptionText(message, false),
-	// 		)
-	// 		if err != nil {
-	// 			fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
-	// 			return
-	// 		}
-	// 	})
+	// cron.AddFunc("0 0 9 * * 5", func() {
+	// 	// Create a time object for the scheduled time
+	// 	// Schedule the message to be sent
+	// 	_, _, err := api.PostMessage(
+	// 		channelID,
+	// 		slack.MsgOptionText(message, false),
+	// 	)
+	// 	if err != nil {
+	// 		fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
+	// 		return
+	// 	}
+	// })
 
-	// 	// Start the cron job
-	// 	cron.Start()
+	// // Start the cron job
+	// cron.Start()
 
-	// // Wait forever
-	// select {}
 }
 
-func getOutstandingPRs() string {
-	message := "*Good morning everyone!* \n\n"
-
+func setupAPI() (context.Context, *github.Client) {
 	// set up authentication and api variables
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
@@ -78,9 +70,11 @@ func getOutstandingPRs() string {
 
 	tc := oauth2.NewClient(ctx, ts)
 	githubClient := github.NewClient(tc)
+	return ctx, githubClient
+}
 
+func getAllPRs(githubClient *github.Client, ctx context.Context, owner string) []*github.PullRequest {
 	// fetch all of the repositories from the SSDT
-	owner := "BCStudentSoftwareDevTeam"
 	repos, _, err := githubClient.Repositories.List(ctx, owner, nil)
 	if err != nil {
 		fmt.Printf("Failed to list repositories: %v\n", err)
@@ -99,6 +93,53 @@ func getOutstandingPRs() string {
 
 		allPRs = append(allPRs, prs...)
 	}
+	return allPRs
+}
+
+func changesRequired(noReviews bool, pr *github.PullRequest, changeMessage string, lastReview time.Time) string {
+	assignee1 := ""
+	assignee2 := ""
+	if !noReviews {
+		assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
+
+		if len(pr.Assignees) > 1 {
+			assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
+
+			changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Last reviewed on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+		}
+	} else {
+		assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
+
+		if len(pr.Assignees) > 1 {
+			assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
+
+			changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Submitted on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
+		}
+	}
+	return changeMessage
+}
+
+func reviewRequired(reviewMessage string, pr *github.PullRequest, lastCommit time.Time) string {
+	reviewMessage += fmt.Sprintf("%s: <%s|#%s> %s. Last updated on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastCommit.Format("January 2, 2006"))
+	return reviewMessage
+}
+
+func getChoreList() string {
+	message := "*Cleaning day! This week's cleaning assignments are:* \n"
+	choreList := utils.ReadChoreSchedule()
+	for _, chore := range choreList {
+		message += fmt.Sprintf("*%s:* %s <@%s> \n", chore[0], chore[1], utils.GetUserID(chore[0]))
+	}
+	return message
+}
+
+func getOutstandingPRs() string {
+	fmt.Println("running getOutstandingPRs")
+	ctx, githubClient := setupAPI()
+	message := "*Good morning everyone!* \n\n"
+	owner := "BCStudentSoftwareDevTeam"
+	allPRs := getAllPRs(githubClient, ctx, owner)
+
 	noReviews := false
 	reviewer1, reviewer2 := utils.ReadReviewSchedule()
 	reviewMessage := ""
@@ -110,7 +151,10 @@ func getOutstandingPRs() string {
 		reviewMessage = fmt.Sprintf("<@%s> *The PRs that require a review are:* \n", reviewer1)
 
 	}
+	tempReviewMessage := reviewMessage
+
 	changeMessage := "\n*The PRs that require changes are:* \n"
+	tempChangeMessage := changeMessage
 
 	// iterate through the prs and identify if they are outstanding.
 	for _, pr := range allPRs {
@@ -150,32 +194,19 @@ func getOutstandingPRs() string {
 
 		// if there have recently been changes and still no review then a review is required
 		if (sinceCommit > 48*time.Hour) && ((sinceReview > sinceCommit) || noReviews) {
-			reviewMessage += fmt.Sprintf("%s: <%s|#%s> %s. Last updated on %s. \n", *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastCommit.Format("January 2, 2006"))
-
+			reviewMessage = reviewRequired(reviewMessage, pr, *lastCommit)
 		}
 
 		// if there has recently been a review and still no changes then changes are required
 		if !noReviews && ((sinceReview > 48*time.Hour) && (sinceReview < sinceCommit)) {
-			assignee1 := ""
-			assignee2 := ""
-			if !noReviews {
-				assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
-
-				if len(pr.Assignees) > 1 {
-					assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
-
-					changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Last reviewed on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
-				}
-			} else {
-				assignee1 = "<@" + utils.GetUserID(*pr.Assignees[0].Login) + ">"
-
-				if len(pr.Assignees) > 1 {
-					assignee2 = "<@" + utils.GetUserID(*pr.Assignees[1].Login) + ">"
-
-					changeMessage += fmt.Sprintf("%s %s %s: <%s|#%s> %s. Submitted on %s. \n", assignee1, assignee2, *pr.GetBase().GetRepo().Name, *pr.HTMLURL, fmt.Sprint(pr.GetNumber()), *pr.Title, lastReview.Format("January 2, 2006"))
-				}
-			}
+			changeMessage = changesRequired(noReviews, pr, changeMessage, lastReview)
 		}
+	}
+	if reviewMessage == tempReviewMessage {
+		reviewMessage = "*There are currently no PRs to review* \n"
+	}
+	if changeMessage == tempChangeMessage {
+		changeMessage = "\n *No PRs currently require changes* \n"
 	}
 	message += reviewMessage + changeMessage
 	return message

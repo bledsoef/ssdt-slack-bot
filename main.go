@@ -32,5 +32,7 @@ func main() {
 
 	controllers.NewSlashCommand(socketmodeHandler)
 
+	// controllers.NewEvent(socketmodeHandler)
+
 	socketmodeHandler.RunEventLoop()
 }
