@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -8,19 +9,23 @@ import (
 )
 
 func ReadReviewSchedule() (string, string) {
-
+	// open excel file
 	filename := "ssdtSchedule"
 	f, err := excelize.OpenFile(filename + ".xlsx")
 
+	// handle potential erros
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	rows, err := f.GetRows("Review")
+
+	// handle potential errors
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// iterate through each row in the sheet and return the schedule to see who the two current reviewers are.
 	for _, row := range rows {
 		partner1 := row[1]
 		partner1_id := GetUserID(partner1)
@@ -33,6 +38,8 @@ func ReadReviewSchedule() (string, string) {
 		if partner2 != "" {
 			partner2_id = GetUserID(partner2)
 		}
+
+		// if it is the correct date column
 		date, err := time.Parse("2006-01-02", row[0])
 		if err != nil {
 			log.Fatal(err)
@@ -48,14 +55,19 @@ func ReadReviewSchedule() (string, string) {
 
 func ReadChoreSchedule() [][]string {
 	choreList := [][]string{}
+
+	// open the excel file
 	filename := "ssdtSchedule"
 	f, err := excelize.OpenFile(filename + ".xlsx")
 
+	// handle potential error
 	if err != nil {
 		log.Fatal(err)
 	}
 	index := 0
 	rows, _ := f.GetRows("Chores")
+
+	// iterate through the first row in the sheet to grab the row index of the current date
 	for i, row := range rows[0][1:] {
 		date, err := time.Parse("2006-01-02", row)
 		if err != nil {
@@ -67,6 +79,7 @@ func ReadChoreSchedule() [][]string {
 
 	}
 
+	// catch potential errors
 	cols, err := f.GetCols("Chores")
 	if err != nil {
 		log.Fatal(err)
@@ -90,6 +103,7 @@ func ReadChoreSchedule() [][]string {
 }
 
 func GetUserID(name string) string {
+	// initialize a map that maps both the first name and github usernames to the Slack User IDs respectively.
 	ssdtMap := map[string]string{
 		"Tyler":      "U033S17C8EB",
 		"tylerpar99": "U033S17C8EB",
@@ -123,4 +137,13 @@ func GetUserID(name string) string {
 	}
 
 	return ssdtMap[name]
+}
+
+func GetChoreList() string {
+	message := "*This week's cleaning assignments are:* \n"
+	choreList := ReadChoreSchedule()
+	for _, chore := range choreList {
+		message += fmt.Sprintf("*%s:* %s <@%s> \n", chore[0], chore[1], GetUserID(chore[0]))
+	}
+	return message
 }
