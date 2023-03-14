@@ -19,5 +19,5 @@ Like with PRs, if you need to do your chores before or after Friday or perhaps l
 Many external sources were used in the making of this application:
 - https://www.bacancytechnology.com/blog/develop-slack-bot-using-golang - helped me initialize my application and start using basic event handling.
 - https://github.com/xNok/slack-go-demo-socketmode - allowed me to implement slash commands and a more concise version of Socketmode into my code. 
-- https://openai.com/product - helped me learn things about the Golang-Slack documentation I couldn't find on my own.
+- https://chat.openai.com/chat - helped me learn things about the Golang-Slack documentation I couldn't find on my own.
 - Brian Ramsay - helped me set up Cron and integrate code into SSDT Slack.
